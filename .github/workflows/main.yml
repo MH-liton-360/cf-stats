@@ -1,62 +1,35 @@
-name: Generate Stats Images
+name: Update Stats
 
 on:
-  push:
-    branches: [ main ]
   schedule:
-    - cron: "5 0 * * *"
+    - cron: "0 0 * * *" # Daily at 00:00 UTC
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  svg-generation:
-    runs-on: ubuntu-22.04
-
+  update-stats:
+    runs-on: ubuntu-latest
     steps:
-      # Check out repository under $GITHUB_WORKSPACE, so the job can access it
-      - uses: actions/checkout@v2
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-      # Run using Python 3.10 for consistency and aiohttp
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          python-version: '3.10'
-          architecture: 'x64'
+          node-version: '20'
 
-      # Cache dependencies. From:
-      # https://github.com/actions/cache/blob/master/examples.md#python---pip
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-      # Install dependencies with `pip`
-      - name: Install requirements
-        run: |
-          python3 -m pip install --upgrade pip setuptools wheel
-          python3 -m pip install -r requirements.txt
-          pip install -e .
+      - name: Install Dependencies
+        run: npm install -g cf-stats leetcard
 
-      - name: create env file
-        run: |
-          touch config/.env
-          cat config/.env.template > config/.env
+      - name: Generate Codeforces Stats
+        run: cf-stats -u M-liton -o ./cf-stats/output
 
-      # Generate all statistics images
-      - name: Generate images
-        run: |
-          python3 --version
-          python3 app/main.py
+      - name: Generate LeetCode Stats
+        run: leetcard -u Mahdi-H-liton -t dark -o ./leetcode-stats/output
 
-      # Commit all changed files to the repository
-      - name: Commit to the repo
+      - name: Commit & Push
         run: |
-          git config --global user.name "sudiptob2/cf-stats"
-          git config --global user.email "cf-stats[bot]@sudiptob2.github.io"
-          git add .
-          # Force the build to succeed, even if no files were changed
-          git commit -m 'Update generated files' || true
+          git config --local user.name "github-actions"
+          git config --local user.email "github-actions@github.com"
+          git add ./cf-stats/output ./leetcode-stats/output
+          git commit -m "Update stats [skip ci]" || echo "No changes"
           git push
